@@ -1,60 +1,118 @@
-# Module 8 Prompts — Expansion & Advanced Moves
+# Module 8 Prompts — Expansion & Advanced Moves (Hermes Edition)
 
 ---
 
 ## Section 8.1 — Running Multiple Markets in Parallel
 
-**Step 1:** Parameterise the instrument so the same script can run for any market:
+**Step 1:** Parameterise the instrument so the same script can run any market:
 
 ```
-The current trading system runs for a single instrument passed as a parameter. I want to extend it so that: (1) the instrument is accepted as a command-line argument rather than being hardcoded, (2) the trade log filename includes the instrument name so EUR/USD and NQ logs don't overwrite each other, (3) the PM2 process name also includes the instrument. Show me the changes needed.
+The current trading system runs for a single instrument hardcoded as SPY.
+Extend it so that:
+1. The instrument is accepted as a command-line argument.
+2. The trade log filename includes the instrument name so SPY and NQ logs
+   don't overwrite each other.
+3. The cron job name also includes the instrument.
+
+Save the updated script as {STRATEGY_FOLDER}/src/execution_layer.py.
 ```
 
-**Step 2:** Add a second instrument to PM2:
+**Step 2:** Add a second instrument as a separate cron job:
 
 ```
-Add a second PM2 process entry to the ecosystem config for NQ1! futures. Name it trend-nq. Everything else is identical to the EUR/USD process.
+Create a second cron job:
+- name: trading-system-nq
+- schedule: */15 * * * 1-5
+- prompt: "Run the trading system for instrument NQ=F. Use the same execution
+  layer but pass --instrument NQ=F. Risk 1% per trade."
+- toolsets: ["alpaca", "tradingview", "file", "memory"]
 ```
 
-Reload PM2: `pm2 restart ecosystem.config.js --update-env`
+**For more instruments:** Repeat Step 2 with different names and instrument args.
 
 ---
 
 ## Section 8.2 — Adding a Second Strategy (Mean Reversion)
 
 ```
-Build a mean reversion strategy for NQ1! futures. Entry conditions: buy when RSI on the 15-minute chart drops below 30 AND price is more than 1 ATR below the 20-period EMA. Exit conditions: close the long when RSI crosses back above 50, or stop loss at 1.5 ATR below entry. Short-side mirror: sell when RSI is above 70 AND price is more than 1 ATR above the 20 EMA, exit when RSI crosses below 50. Run it using the same market data connection and execution framework we've already built.
+Build a mean reversion strategy. Save it to {STRATEGY_FOLDER}/strategies/mean-reversion.json.
+
+Entry conditions (long):
+- RSI(14) on 15-minute chart drops below 30
+- Price is more than 1 ATR below the 20-period EMA
+
+Exit conditions (long):
+- RSI crosses back above 50, OR
+- Stop loss at 1.5 ATR below entry
+
+Short-side mirror:
+- Sell when RSI > 70 AND price > 1 ATR above 20 EMA
+- Exit when RSI crosses below 50
+
+Write the signal engine for this strategy as
+{STRATEGY_FOLDER}/src/signal_engine_meanrev.py.
+It should read the same market data but apply these different rules.
 ```
 
-Add to PM2:
+Add it as a separate cron job:
 
 ```
-Add a third PM2 process entry for mean-rev-nq.py. Name it mean-rev-nq. Keep it in the same format as the other entries.
+Create a cron job:
+- name: trading-system-meanrev-spy
+- schedule: */15 * * * 1-5
+- prompt: "Run the mean reversion strategy on SPY. Use
+  {STRATEGY_FOLDER}/src/signal_engine_meanrev.py and
+  {STRATEGY_FOLDER}/src/execution_layer.py together. Risk 1% per trade."
+- toolsets: ["alpaca", "tradingview", "file", "memory"]
 ```
 
-**If mean-rev-nq shows an error at startup:** Check `pm2 logs mean-rev-nq --lines 20`. Most common causes: symbol format (`NQ1!` vs `NQ/USD`) or missing RSI library import.
+**If a strategy errors at startup:** Read its log file in
+`{STRATEGY_FOLDER}/logs/` and diagnose. Common causes: symbol format mismatch,
+missing indicator library imports, or incorrect ATR calculation period.
 
 ---
 
-## What's running after Module 8
+## What's Running After Module 8
 
-Three PM2 processes:
-- `trend-eur-usd` — EMA crossover trend strategy, EUR/USD
-- `trend-nq` — same strategy, NQ futures
-- `mean-rev-nq` — RSI + ATR mean reversion, NQ futures
+Multiple Hermes cron jobs:
+- `trading-system-spy` — EMA crossover trend strategy, SPY
+- `trading-system-nq` — same strategy, NQ futures
+- `trading-system-meanrev-spy` — RSI + ATR mean reversion, SPY
 
-Two strategies with genuinely different edges: trend-following wins when markets are moving directionally; mean reversion wins when they're oscillating. Their bad periods don't overlap the same way.
+Two strategies with genuinely different edges: trend-following wins when markets
+are directional; mean reversion wins when they're oscillating. Bad periods don't
+overlap the same way.
 
 ---
 
-## Going further (Section 8.3)
+## Going Further (Section 8.3)
 
-Ideas to extend the system — all achievable with Claude Code:
+Ideas to extend — all achievable with Hermes tools:
 
-**Sentiment layer:** Add a news API or Apify scraper. Ask Claude Code to score headlines for your instrument. Use the sentiment score to adjust position size or filter signals.
+**Sentiment layer:**
 
-**Multi-timeframe confirmation:** Run the signal engine on both a higher timeframe (1-hour trend direction) and a lower timeframe (5-minute entry). Only take entries when both timeframes agree.
+```
+Use web_search to fetch recent headlines for SPY.
+Score each headline as bullish/bearish/neutral using a simple keyword list.
+Adjust position size: if sentiment is strongly bullish, increase size by 20%.
+If strongly bearish, decrease size or skip the trade.
+```
 
-**Portfolio-level risk management:** Add a rule: if total open exposure across all processes exceeds 5% of account value, pause new entries across all strategies until exposure reduces.
+**Multi-timeframe confirmation:**
 
-All of these are descriptions you give to Claude Code. The architecture is already in place.
+```
+Run the signal engine on both 1-hour (trend direction) and 5-minute (entry) data.
+Only take entries when both timeframes agree. Fetch both timeframes using
+mcp_alpaca_get_stock_bars with different timeframes.
+```
+
+**Portfolio-level risk management:**
+
+```
+Before placing any new trade, use mcp_alpaca_get_all_positions to check total
+open exposure. If total exposure across all strategies exceeds 5% of account
+value, pause new entries across ALL cron jobs until exposure reduces.
+```
+
+All of these are plain-English descriptions you give to Hermes.
+The architecture is already in place.

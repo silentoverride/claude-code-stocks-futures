@@ -1,19 +1,21 @@
-# Module 2 Prompts — Market Data & Signal Generation
+# Module 2 Prompts — Market Data & Signal Generation (Hermes Edition)
 
 ---
 
 ## Section 2.1 — Connecting to Live Market Data
 
 ```
-Write a Python script that connects to Alpaca's real-time market data API using a websocket. Subscribe to live trades and quotes for NQ1! — that's the continuous front-month NASDAQ futures contract. When a new price update arrives, print the timestamp, the symbol, and the latest bid and ask price to the terminal. Use the APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables for authentication. Use the paper trading base URL.
+Use mcp_alpaca_get_stock_bars to fetch the last 200 bars of SPY at 15-minute resolution.
+Then use mcp_tradingview_get_stock_bars to verify SPY data is available there too.
+Print the latest 5 bars (timestamp, open, high, low, close, volume) from Alpaca.
 ```
 
-**Stocks traders:** Replace `NQ1!` with `SPY` — the code is identical.
+**Futures traders:** Replace `SPY` with `NQ=F` (NASDAQ futures) or your futures symbol. Alpaca supports some futures; for others use TradingView MCP data.
 
-**If you see a stream error:** Say this to Claude Code:
+**If you see a data error:** Tell Hermes:
 
 ```
-The symbol NQ1! isn't being recognised by this stream. Which Alpaca data stream should I use for futures contracts, and can you rewrite the script to use it?
+The symbol [SYMBOL] isn't returning data from Alpaca. Use mcp_tradingview_get_stock_bars to find the correct ticker format, then fetch the same data via TradingView MCP instead.
 ```
 
 ---
@@ -21,11 +23,32 @@ The symbol NQ1! isn't being recognised by this stream. Which Alpaca data stream 
 ## Section 2.2 — Building the Signal Engine
 
 ```
-Build a signal engine in Python that does the following: it receives the live price feed from our Alpaca websocket (NQ1! 15-minute bars), calculates the 20-period EMA and the 50-period EMA from the bar data, and fires a BUY SIGNAL when the 20 EMA crosses above the 50 EMA, and a SELL SIGNAL when the 20 EMA crosses below the 50 EMA. When a signal fires, print it to the terminal in this format: '[BUY SIGNAL] NQ 18432 — 20 EMA crossed above 50 EMA on 15m'. Use pandas-ta or ta-lib for the EMA calculations. Maintain a rolling window of at least 100 bars so the EMAs are statistically meaningful.
+Write a Python script called signal_engine.py that does the following:
+1. Fetch the last 200 bars of SPY at 15-minute resolution using Alpaca MCP (via a wrapper or direct API call — if MCP doesn't exist, use alpaca-py SDK).
+2. Calculate the 20-period EMA and the 50-period EMA using pandas-ta or ta-lib.
+3. Fire a BUY SIGNAL when the 20 EMA crosses above the 50 EMA.
+4. Fire a SELL SIGNAL when the 20 EMA crosses below the 50 EMA.
+5. Print signals in this format: '[BUY SIGNAL] SPY 454.32 — 20 EMA crossed above 50 EMA on 15m'.
+6. Maintain a rolling window of at least 100 bars so EMAs are statistically meaningful.
+
+Save it to {STRATEGY_FOLDER}/src/signal_engine.py.
 ```
 
 **Note:** The engine needs at least 50 completed bars before it can calculate the 50-period EMA. For testing without waiting for live data, use this:
 
 ```
-Add a backtesting mode that runs the signal engine against the last 200 bars of historical data from Alpaca instead of live data, so I can verify the signal logic is working correctly.
+Add a backtesting mode that runs the signal engine against the last 200 bars of historical data from Alpaca instead of live data, so I can verify the signal logic is working correctly. Save as signal_engine_backtest.py.
 ```
+
+---
+
+## Section 2.3 — Customising Your Signal
+
+```
+Read {STRATEGY_FOLDER}/src/signal_engine.py. I want to customise the indicators.
+Change the fast EMA to [X] periods and the slow EMA to [Y] periods.
+Add an RSI filter: only fire a buy signal if 14-period RSI is below [Z] at crossover.
+Save the updated script and re-run the backtest mode to verify it still produces signals.
+```
+
+Replace [X], [Y], [Z] with your desired values.

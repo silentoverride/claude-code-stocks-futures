@@ -1,0 +1,9 @@
+.env
+config
+data
+logs
+signals
+src
+strategies
+_run_main.py
+_run_main.sh
